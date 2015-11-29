@@ -1,0 +1,48 @@
+#!/usr/bin/env node
+var debug = require('debug')('joystream');
+var app = require('../app');
+
+app.set('port', process.env.PORT || 3000);
+
+var server = app.listen(app.get('port'), function() {
+  debug('Express server listening on port ' + server.address().port);
+});
+
+var WebSocketServer = require('ws').Server
+var wss = new WebSocketServer({ server: server });
+
+var UdpImages = require('./../udp');
+var udpImages = new UdpImages();
+
+udpImages.on('image', function(img) {
+	img = img.toString('base64');
+    var data = {type: 'image', data: img};
+    wss.clients.forEach(function each(client) {
+        try {
+
+            client.send(JSON.stringify(data));
+        } catch(notUsed) {}
+
+    });
+});
+
+var UdpControl = require('./../udpcontrol');
+
+var udpControl = new UdpControl();
+
+udpControl.on('control', function(data) {
+	var data = {type: 'control', data: data};
+    wss.clients.forEach(function each(client) {
+    try {
+
+        client.send(JSON.stringify(data));
+    } catch(notUsed) {}
+
+    });
+});
+
+wss.on('connection', function connection(ws) {
+  ws.on('message', function incoming(message) {
+    udpControl.send(JSON.parse(message));
+  });
+});
